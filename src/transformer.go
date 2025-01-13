@@ -52,7 +52,7 @@ func (config *ListToMapTransformer) Transform(input interface{}) (interface{}, e
 }
 
 type ListMappingTransformer struct {
-	mapping map[interface{}]interface{}
+	mapping map[string]string
 }
 
 // Transform transforms the input list by mapping the elements to the values in the mapping.
@@ -67,7 +67,7 @@ func (config ListMappingTransformer) Transform(input interface{}) (records []int
 	listV := reflect.ValueOf(input)
 	records = make([]interface{}, 0)
 	for i := 0; i < listV.Len(); i++ {
-		el := listV.Index(i).Interface()
+		el := listV.Index(i).String()
 		if val, ok := config.mapping[el]; ok {
 			records = append(records, val)
 		} else {
