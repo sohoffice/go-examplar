@@ -7,15 +7,23 @@ import (
 )
 
 type Args struct {
-	ConfigDir          string `arg:"positional"`
-	FeatureFile        string `arg:"--feature-file,required"`
-	FeatureMappingFile string `arg:"--feature-mapping-file,required"`
+	ConfigDir          string   `arg:"positional"`
+	FeatureFile        string   `arg:"--feature-file,required"`
+	FeatureMappingFile string   `arg:"--feature-mapping-file,required"`
+	ConfigFile         string   `arg:"--config-file" default:"config.yaml"`
+	FeatureSet         []string `arg:"--feature-set"`
 }
 
 // Processing steps
-// 1. Read features from a plain text file
-// 2. Read feature mapping from a properties file
-// 3. Convert feature names using the mapping
+//  1. Read features from a plain text file
+//  2. Read feature mapping from a properties file
+//  3. Convert feature names using the mapping
+//  4. Read config.yaml from a YAML file
+//  5. Processing for each feature set
+//     a. Expand according to configuration in config.yaml
+//     b. Filter the feature based on config#feature-set
+//     c. Sort the features based on config#priority
+//     d.
 func main() {
 	// use struct embedding to create a anonymous struct while still using a declared interface
 	// so it can be referred to later
@@ -33,6 +41,8 @@ func main() {
 	context["feature-mapping"] = readFeatureMapping(context)
 	// convert feature to new names
 	context["features"] = convertFeatureNames(context)
+	// Read config YAML
+	context["config"] = readConfigFile(context)
 
 	fmt.Printf("Output: %+v\n", context)
 }
@@ -71,4 +81,15 @@ func convertFeatureNames(context map[string]interface{}) interface{} {
 		panic(err)
 	}
 	return v
+}
+
+func readConfigFile(context map[string]interface{}) interface{} {
+	step := YamlInputSource{
+		path: context["args"].(Args).ConfigFile,
+	}
+	value, err := step.Provide(os.DirFS(context["args"].(Args).ConfigDir))
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

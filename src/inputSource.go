@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"github.com/magiconair/properties"
+	"gopkg.in/yaml.v3"
 	"io"
 	"io/fs"
 	"log"
@@ -111,4 +112,31 @@ func (receiver PlainTextFileInputSource) Provide(filesystem fs.FS) (d interface{
 		}
 	}
 	return records, nil
+}
+
+type YamlInputSource struct {
+	path    string
+	flatten int
+}
+
+// Provide reads the YAML file and returns the data as map[interface{}]interface{}.
+func (config YamlInputSource) Provide(filesystem fs.FS) (data interface{}, err error) {
+	f, err := filesystem.Open(config.path)
+	if err != nil {
+		panic(fmt.Sprintf("Error reading %s: %v", config.path, err))
+	}
+	defer f.Close()
+
+	m := make(map[interface{}]interface{})
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.Unmarshal(bytes, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("%+v\n", m)
+	return m, nil
 }
