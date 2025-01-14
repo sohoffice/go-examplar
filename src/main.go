@@ -14,16 +14,6 @@ type Args struct {
 	FeatureSet         []string `arg:"--feature-set"`
 }
 
-// Processing steps
-//  1. Read features from a plain text file
-//  2. Read feature mapping from a properties file
-//  3. Convert feature names using the mapping
-//  4. Read config.yaml from a YAML file
-//  5. Processing for each feature set
-//     a. Expand according to configuration in config.yaml
-//     b. Filter the feature based on config#feature-set
-//     c. Sort the features based on config#priority
-//     d.
 func main() {
 	// use struct embedding to create a anonymous struct while still using a declared interface
 	// so it can be referred to later
@@ -35,14 +25,18 @@ func main() {
 
 	context := make(map[string]interface{})
 	context["args"] = args.Args
-	// read the source feature names
+	// 1. Read features from a plain text file
 	context["raw-features"] = readFeatures(context)
-	// read the feature mapping to new names
+	// 2. Read feature mapping from a properties file
 	context["feature-mapping"] = readFeatureMapping(context)
-	// convert feature to new names
+	// 3. Convert feature names using the mapping
 	context["features"] = convertFeatureNames(context)
-	// Read config YAML
+	// 4. Read config.yaml from a YAML file
 	context["config"] = readConfigFile(context)
+	// 5. Expand according to configuration in config.yaml
+	context["features"] = expandFeatureByConfig(context)
+	//  6. Filter the feature based on config#feature-set
+	//  7. Sort the features based on config#priority
 
 	fmt.Printf("Output: %+v\n", context)
 }
@@ -88,6 +82,18 @@ func readConfigFile(context map[string]interface{}) interface{} {
 		path: context["args"].(Args).ConfigFile,
 	}
 	value, err := step.Provide(os.DirFS(context["args"].(Args).ConfigDir))
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func expandFeatureByConfig(context map[string]interface{}) interface{} {
+	step := ListExpandTransformer{
+		dataByKey: (context["config"]).(map[interface{}]interface{}),
+		keyMapper: IdentityMapper,
+	}
+	value, err := step.Transform(context["features"])
 	if err != nil {
 		panic(err)
 	}
