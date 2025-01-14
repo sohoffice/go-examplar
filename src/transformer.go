@@ -31,6 +31,24 @@ func IdentityMapper(input interface{}) string {
 	return input.(string)
 }
 
+type Predicate func(input interface{}) bool
+
+// MapValuePredicate returns a predicate that checks if the map value indicated by key is equal to the matchValue.
+func MapValuePredicate(key string, matchValue interface{}) Predicate {
+	return func(input interface{}) bool {
+		if input == nil {
+			return false
+		}
+		mv := reflect.ValueOf(input)
+		kv := reflect.ValueOf(key)
+		v := mv.MapIndex(kv)
+		if v.Kind() == reflect.Invalid {
+			return false
+		}
+		return reflect.DeepEqual(v.Interface(), matchValue)
+	}
+}
+
 type Transformer interface {
 	Transform(input interface{}) (interface{}, error)
 }
@@ -124,6 +142,28 @@ func (config ListExpandTransformer) Transform(input interface{}) (record []inter
 	for k, v := range bookkeeping {
 		if v == false {
 			log.Printf("Config key '%s' not used in expand transformer", k)
+		}
+	}
+	return records, nil
+}
+
+type ListFilterTransformer struct {
+	predicate Predicate
+}
+
+func (config ListFilterTransformer) Transform(input interface{}) (records []interface{}, err error) {
+	if input == nil {
+		return nil, errors.New("ListFilterTransformer: Input is nil")
+	}
+	if reflect.TypeOf(input).Kind() != reflect.Slice {
+		return nil, errors.New("ListFilterTransformer: Input is not a list")
+	}
+	listV := reflect.ValueOf(input)
+	records = make([]interface{}, 0)
+	for i := 0; i < listV.Len(); i++ {
+		el := listV.Index(i).Interface()
+		if config.predicate(el) {
+			records = append(records, el)
 		}
 	}
 	return records, nil

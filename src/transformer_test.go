@@ -200,3 +200,57 @@ func TestListExpandTransformer_Transform(t *testing.T) {
 		})
 	}
 }
+
+var testData = []map[string]interface{}{
+	{"featureSet": "one", "name": "foo"},
+	{"featureSet": "two", "name": "bar"},
+	{"featureSet": "one", "name": "baz"},
+}
+
+func TestListFilterTransformer_Transform(t *testing.T) {
+	type fields struct {
+		predicate Predicate
+	}
+	type args struct {
+		input interface{}
+	}
+	tests := []struct {
+		name        string
+		fields      fields
+		args        args
+		wantRecords []interface{}
+		wantErr     bool
+	}{
+		{
+			name: "normal flow",
+			fields: fields{
+				predicate: func(it interface{}) bool {
+					return it.(map[string]interface{})["featureSet"] == "one"
+				},
+			},
+			args: args{
+				input: testData,
+			},
+			wantRecords: []interface{}{
+				map[string]interface{}{"featureSet": "one", "name": "foo"},
+				map[string]interface{}{"featureSet": "one", "name": "baz"},
+			},
+		},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ListFilterTransformer{
+				predicate: tt.fields.predicate,
+			}
+			gotRecords, err := config.Transform(tt.args.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Transform() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(gotRecords, tt.wantRecords) {
+				t.Errorf("Transform() gotRecords = %v, want %v", gotRecords, tt.wantRecords)
+			}
+		})
+	}
+}

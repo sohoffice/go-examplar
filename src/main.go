@@ -35,8 +35,15 @@ func main() {
 	context["config"] = readConfigFile(context)
 	// 5. Expand according to configuration in config.yaml
 	context["features"] = expandFeatureByConfig(context)
-	//  6. Filter the feature based on config#feature-set
-	//  7. Sort the features based on config#priority
+	// 6. For each feature set, filter the features
+	for _, featureSet := range args.FeatureSet {
+		// The per-feature set results will be stored at "feature-<featureSet>"
+		contextVarName := fmt.Sprintf("feature-%s", featureSet)
+		// a. Filter the feature based on config#featureSet and put it to per-feature set context variable
+		context[contextVarName] = filterFeatureByFeatureSet(context, featureSet)
+		// b. Sort the features based on config#priority
+		// c. Render the template for feature set
+	}
 
 	fmt.Printf("Output: %+v\n", context)
 }
@@ -92,6 +99,17 @@ func expandFeatureByConfig(context map[string]interface{}) interface{} {
 	step := ListExpandTransformer{
 		dataByKey: (context["config"]).(map[interface{}]interface{}),
 		keyMapper: IdentityMapper,
+	}
+	value, err := step.Transform(context["features"])
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func filterFeatureByFeatureSet(context map[string]interface{}, featureSet string) interface{} {
+	step := ListFilterTransformer{
+		predicate: MapValuePredicate("featureSet", featureSet),
 	}
 	value, err := step.Transform(context["features"])
 	if err != nil {
