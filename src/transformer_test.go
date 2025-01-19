@@ -148,16 +148,24 @@ func TestListMappingTransformer_Transform(t *testing.T) {
 
 func TestListExpandTransformer_Transform(t *testing.T) {
 	type fields struct {
-		dataByKey map[interface{}]interface{}
-		keyMapper StringMapper
+		dataByKey   map[interface{}]interface{}
+		keyMapper   StringMapper
+		keepKeyName bool
 	}
 	type args struct {
 		input interface{}
 	}
-	dataByKey := make(map[interface{}]interface{})
-	dataByKey["foo"] = 10
-	dataByKey["bar"] = 15
-	dataByKey["foobar"] = 20
+	objectByKey := map[interface{}]interface{}{
+		"foo": map[interface{}]interface{}{
+			"val": 10,
+		},
+		"bar": map[interface{}]interface{}{
+			"val": 15,
+		},
+		"foobar": map[interface{}]interface{}{
+			"val": 20,
+		},
+	}
 
 	tests := []struct {
 		name       string
@@ -169,7 +177,7 @@ func TestListExpandTransformer_Transform(t *testing.T) {
 		{
 			name: "normal flow",
 			fields: fields{
-				dataByKey: dataByKey,
+				dataByKey: objectByKey,
 				keyMapper: IdentityMapper,
 			},
 			args: args{
@@ -178,7 +186,35 @@ func TestListExpandTransformer_Transform(t *testing.T) {
 				},
 			},
 			wantRecord: []interface{}{
-				15, 10,
+				map[interface{}]interface{}{
+					"val": 15,
+				},
+				map[interface{}]interface{}{
+					"val": 10,
+				},
+			},
+		},
+		{
+			name: "keep key name",
+			fields: fields{
+				dataByKey:   objectByKey,
+				keyMapper:   IdentityMapper,
+				keepKeyName: true,
+			},
+			args: args{
+				input: []string{
+					"bar", "foo", "baz",
+				},
+			},
+			wantRecord: []interface{}{
+				map[interface{}]interface{}{
+					"val":  15,
+					"Name": "bar",
+				},
+				map[interface{}]interface{}{
+					"val":  10,
+					"Name": "foo",
+				},
 			},
 		},
 		// TODO: Add test cases.
@@ -186,8 +222,9 @@ func TestListExpandTransformer_Transform(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := ListExpandTransformer{
-				dataByKey: tt.fields.dataByKey,
-				keyMapper: tt.fields.keyMapper,
+				dataByKey:   tt.fields.dataByKey,
+				keyMapper:   tt.fields.keyMapper,
+				keepKeyName: tt.fields.keepKeyName,
 			}
 			gotRecord, err := config.Transform(tt.args.input)
 			if (err != nil) != tt.wantErr {
@@ -250,6 +287,85 @@ func TestListFilterTransformer_Transform(t *testing.T) {
 			}
 			if !reflect.DeepEqual(gotRecords, tt.wantRecords) {
 				t.Errorf("Transform() gotRecords = %v, want %v", gotRecords, tt.wantRecords)
+			}
+		})
+	}
+}
+
+func TestListStringSortTransformer_Transform(t *testing.T) {
+	type fields struct {
+		mapper StringMapper
+	}
+	type args struct {
+		input interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []interface{}
+		wantErr bool
+	}{
+		{
+			name: "normal flow",
+			fields: fields{
+				mapper: IdentityMapper,
+			},
+			args: args{
+				input: []interface{}{
+					"3", "1", "2",
+				},
+			},
+			want: []interface{}{
+				"1", "2", "3",
+			},
+		},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := ListStringSortTransformer{
+				mapper: tt.fields.mapper,
+			}
+			got, err := config.Transform(tt.args.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Transform() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Transform() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMapValueStringMapper(t *testing.T) {
+	type args struct {
+		key  string
+		data map[string]interface{}
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Happy path",
+			args: args{
+				key: "priority",
+				data: map[string]interface{}{
+					"priority": "A01",
+				},
+			},
+			want: "A01",
+		},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapper := MapValueStringMapper(tt.args.key)
+			if got := mapper(tt.args.data); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("MapValueStringMapper() = %v, want %v", got, tt.want)
 			}
 		})
 	}

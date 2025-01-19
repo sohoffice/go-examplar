@@ -1,16 +1,16 @@
 Foo:
-  priority: 1
+  priority: A01
   feature-set: one
   properties:
     - foo_value1
     - foo_value2
 
 Bar:
-  priority: 2
+  priority: A02
   feature-set: one
 
 Baz:
-  priority: 1
+  priority: B01
   feature-set: two
   properties:
     - baz_value1

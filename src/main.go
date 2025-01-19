@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"github.com/alexflint/go-arg"
+	"html/template"
+	"io"
 	"os"
+	"path"
 )
 
 type Args struct {
@@ -12,6 +15,7 @@ type Args struct {
 	FeatureMappingFile string   `arg:"--feature-mapping-file,required"`
 	ConfigFile         string   `arg:"--config-file" default:"config.yaml"`
 	FeatureSet         []string `arg:"--feature-set"`
+	TemplateDir        string   `arg:"--template-dir,required"`
 }
 
 func main() {
@@ -42,10 +46,39 @@ func main() {
 		// a. Filter the feature based on config#featureSet and put it to per-feature set context variable
 		context[contextVarName] = filterFeatureByFeatureSet(context, featureSet)
 		// b. Sort the features based on config#priority
-		// c. Render the template for feature set
+		context[contextVarName] = sortFeatureSetByPriority(context, contextVarName)
+		// c. Prepare the context for rendering
+		tc := make(map[string]interface{})
+		tc["features"] = context[contextVarName]
+		// d. Render the template for feature set
+		tmpl := prepareTemplateForFeature(args.TemplateDir, featureSet)
+		fmt.Println("== BEGIN OUTPUT ==")
+		err := tmpl.Execute(os.Stdout, tc)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("== END ==")
 	}
 
-	fmt.Printf("Output: %+v\n", context)
+	fmt.Printf("Context: %+v\n", context)
+}
+
+func prepareTemplateForFeature(templateDir string, featureSet string) *template.Template {
+	tmplFile := path.Join(templateDir, fmt.Sprintf("%s.tmpl", featureSet))
+	f, err := os.Open(tmplFile)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		panic(err)
+	}
+	tmpl, err := template.New(featureSet).Parse(string(bytes))
+	if err != nil {
+		panic(err)
+	}
+	return tmpl
 }
 
 // Read the raw feature file
@@ -97,8 +130,9 @@ func readConfigFile(context map[string]interface{}) interface{} {
 
 func expandFeatureByConfig(context map[string]interface{}) interface{} {
 	step := ListExpandTransformer{
-		dataByKey: (context["config"]).(map[interface{}]interface{}),
-		keyMapper: IdentityMapper,
+		dataByKey:   (context["config"]).(map[interface{}]interface{}),
+		keyMapper:   IdentityMapper,
+		keepKeyName: true,
 	}
 	value, err := step.Transform(context["features"])
 	if err != nil {
@@ -109,9 +143,20 @@ func expandFeatureByConfig(context map[string]interface{}) interface{} {
 
 func filterFeatureByFeatureSet(context map[string]interface{}, featureSet string) interface{} {
 	step := ListFilterTransformer{
-		predicate: MapValuePredicate("featureSet", featureSet),
+		predicate: MapValuePredicate("feature-set", featureSet),
 	}
 	value, err := step.Transform(context["features"])
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+func sortFeatureSetByPriority(context map[string]interface{}, contextVarName string) interface{} {
+	step := ListStringSortTransformer{
+		mapper: MapValueStringMapper("priority"),
+	}
+	value, err := step.Transform(context[contextVarName])
 	if err != nil {
 		panic(err)
 	}

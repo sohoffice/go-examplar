@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log"
 	"reflect"
+	"slices"
+	"strings"
 )
 
 type Mapper func(input interface{}) interface{}
@@ -29,6 +31,12 @@ type StringMapper func(input interface{}) string
 // IdentityMapper returns the input as a string.
 func IdentityMapper(input interface{}) string {
 	return input.(string)
+}
+
+func MapValueStringMapper(key string) StringMapper {
+	return func(input interface{}) string {
+		return input.(map[string]interface{})[key].(string)
+	}
 }
 
 type Predicate func(input interface{}) bool
@@ -125,7 +133,7 @@ func (config ListExpandTransformer) Transform(input interface{}) (record []inter
 	listV := reflect.ValueOf(input)
 	records := make([]interface{}, 0)
 	for i := 0; i < listV.Len(); i++ {
-		el := listV.Index(i).String()
+		el := listV.Index(i).Interface()
 		keyName := config.keyMapper(el)
 		if val, ok := config.dataByKey[keyName]; ok {
 			if config.keepKeyName {
@@ -167,4 +175,27 @@ func (config ListFilterTransformer) Transform(input interface{}) (records []inte
 		}
 	}
 	return records, nil
+}
+
+type ListStringSortTransformer struct {
+	mapper StringMapper
+}
+
+func (config ListStringSortTransformer) Transform(input interface{}) ([]interface{}, error) {
+	if input == nil {
+		return nil, errors.New("ListSortTransformer: Input is nil")
+	}
+	if reflect.TypeOf(input).Kind() != reflect.Slice {
+		return nil, errors.New("ListSortTransformer: Input is not a list")
+	}
+	list := input.([]interface{})
+	listV := reflect.ValueOf(input)
+	for i := 0; i < listV.Len(); i++ {
+		slices.SortStableFunc(list, func(i, j interface{}) int {
+			a := config.mapper(i)
+			b := config.mapper(j)
+			return strings.Compare(a, b)
+		})
+	}
+	return list, nil
 }
