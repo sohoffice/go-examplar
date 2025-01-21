@@ -3,4 +3,7 @@ Name: one
 features:
   {{ range .features }}
     Name: {{ .Name }}
+    {{ range .properties }}
+      properties: {{ getProperty . }}
+    {{ end }}
   {{ end }}

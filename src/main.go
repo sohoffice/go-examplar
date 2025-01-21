@@ -15,6 +15,7 @@ type Args struct {
 	FeatureMappingFile string   `arg:"--feature-mapping-file,required"`
 	ConfigFile         string   `arg:"--config-file" default:"config.yaml"`
 	FeatureSet         []string `arg:"--feature-set"`
+	PropertyFiles      []string `arg:"--property-file"`
 	TemplateDir        string   `arg:"--template-dir,required"`
 }
 
@@ -39,7 +40,9 @@ func main() {
 	context["config"] = readConfigFile(context)
 	// 5. Expand according to configuration in config.yaml
 	context["features"] = expandFeatureByConfig(context)
-	// 6. For each feature set, filter the features
+	// 6. Read properties from property files
+	properties := readProperties(context)
+	// 7. For each feature set, filter the features
 	for _, featureSet := range args.FeatureSet {
 		// The per-feature set results will be stored at "feature-<featureSet>"
 		contextVarName := fmt.Sprintf("feature-%s", featureSet)
@@ -51,7 +54,7 @@ func main() {
 		tc := make(map[string]interface{})
 		tc["features"] = context[contextVarName]
 		// d. Render the template for feature set
-		tmpl := prepareTemplateForFeature(args.TemplateDir, featureSet)
+		tmpl := prepareTemplateForFeature(args.TemplateDir, featureSet, properties)
 		fmt.Println("== BEGIN OUTPUT ==")
 		err := tmpl.Execute(os.Stdout, tc)
 		if err != nil {
@@ -63,22 +66,32 @@ func main() {
 	fmt.Printf("Context: %+v\n", context)
 }
 
-func prepareTemplateForFeature(templateDir string, featureSet string) *template.Template {
+func prepareTemplateForFeature(templateDir string, featureSet string, properties []interface{}) *template.Template {
 	tmplFile := path.Join(templateDir, fmt.Sprintf("%s.tmpl", featureSet))
 	f, err := os.Open(tmplFile)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
+	functions := prepareTemplateFunctions(properties)
 	bytes, err := io.ReadAll(f)
 	if err != nil {
 		panic(err)
 	}
-	tmpl, err := template.New(featureSet).Parse(string(bytes))
+	tmpl, err := template.New(featureSet).Funcs(functions).Parse(string(bytes))
 	if err != nil {
 		panic(err)
 	}
 	return tmpl
+}
+
+func prepareTemplateFunctions(properties []interface{}) template.FuncMap {
+	lookup := PropertiesLookup{properties: properties}
+	functions := template.FuncMap{
+		"hasProperty": lookup.HasProperty,
+		"getProperty": lookup.GetProperty,
+	}
+	return functions
 }
 
 // Read the raw feature file
@@ -139,6 +152,23 @@ func expandFeatureByConfig(context map[string]interface{}) interface{} {
 		panic(err)
 	}
 	return value
+}
+
+// Read properties specified in the input arguments
+func readProperties(context map[string]interface{}) []interface{} {
+	files := context["args"].(Args).PropertyFiles
+	list := make([]interface{}, len(files))
+	for i, f := range files {
+		step := PropertiesInputSource{
+			path: f,
+		}
+		properties, err := step.Provide(os.DirFS(context["args"].(Args).ConfigDir))
+		if err != nil {
+			panic(err)
+		}
+		list[i] = properties
+	}
+	return list
 }
 
 func filterFeatureByFeatureSet(context map[string]interface{}, featureSet string) interface{} {
