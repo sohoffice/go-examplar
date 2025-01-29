@@ -1,9 +1,24 @@
 ---
-Name: one
+Name: {{ getProperty "config_name" }}
+{{- $identifier := getProperty "config_identifier" }}
+Config: {{ $identifier }}
+Description: This is template for feature set 'one'
 features:
-  {{ range .features }}
-    Name: {{ .Name }}
-    {{ range .properties }}
-      properties: {{ getProperty . }}
-    {{ end }}
-  {{ end }}
+{{- range .features }}
+    - Name: {{ .Name }}
+      {{- range $i, $el := .parameters }}
+      {{- if eq $i 0 }}
+      Parameters:{{- end }}
+          - name: {{ $el.name }}
+            value: {{ getProperty $el.property }}
+      {{- end }}
+  {{- $print_deps := 0 }}
+  {{- range .deps }}
+      {{- if eq .in $identifier }}
+      {{- if ne $print_deps 1 }}
+      Deps:{{- $print_deps = 1 }}{{- end}}
+          - name: {{ .name }}
+            instance: {{ .instance }}
+      {{- end }}
+  {{- end }}
+{{- end }}

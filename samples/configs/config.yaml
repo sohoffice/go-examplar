@@ -1,9 +1,21 @@
 Foo:
   priority: A01
   feature-set: one
-  properties:
-    - foo_value1
-    - foo_value2
+  parameters:
+    - name: foo_value1
+      property: foo_value1
+    - name: foo_value2
+      property: foo_value2
+  deps:
+    - name: something1
+      instance: something1-A
+      in: A
+    - name: something1
+      instance: something1-B
+      in: B
+    - name: something2
+      instance: something2-A
+      in: A
 
 Bar:
   priority: A02

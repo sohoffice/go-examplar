@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/alexflint/go-arg"
 	"html/template"
@@ -50,20 +51,20 @@ func main() {
 		context[contextVarName] = filterFeatureByFeatureSet(context, featureSet)
 		// b. Sort the features based on config#priority
 		context[contextVarName] = sortFeatureSetByPriority(context, contextVarName)
+		fmt.Printf("Context: %+v\n", context)
 		// c. Prepare the context for rendering
 		tc := make(map[string]interface{})
 		tc["features"] = context[contextVarName]
 		// d. Render the template for feature set
 		tmpl := prepareTemplateForFeature(args.TemplateDir, featureSet, properties)
-		fmt.Println("== BEGIN OUTPUT ==")
-		err := tmpl.Execute(os.Stdout, tc)
+		buffer := bytes.Buffer{}
+		err := tmpl.Execute(&buffer, tc)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("== END ==")
+		fmt.Printf("== BEGIN OUTPUT ==\n%s", buffer.String())
 	}
 
-	fmt.Printf("Context: %+v\n", context)
 }
 
 func prepareTemplateForFeature(templateDir string, featureSet string, properties []interface{}) *template.Template {
@@ -90,6 +91,9 @@ func prepareTemplateFunctions(properties []interface{}) template.FuncMap {
 	functions := template.FuncMap{
 		"hasProperty": lookup.HasProperty,
 		"getProperty": lookup.GetProperty,
+		"add": func(a, b int) int {
+			return a + b
+		},
 	}
 	return functions
 }
